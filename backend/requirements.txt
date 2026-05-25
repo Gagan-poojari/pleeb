@@ -1,0 +1,20 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# ── existing Pleeb deps (keep in sync with root requirements.txt) ─────────────
+torch==2.2.1+cpu
+numpy>=1.23.0
+whisper-timestamped>=1.15.0
+moviepy>=1.0.3
+pydub>=0.25.1
+yt-dlp>=2023.11.14
+python-dateutil>=2.8.2
+
+# ── FastAPI web framework ─────────────────────────────────────────────────────
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9      # required for UploadFile / Form
+sse-starlette>=1.8.2         # Server-Sent Events for progress streaming
+
+# -- Database --------------------------------------------------------------
+sqlalchemy
+psycopg2-binary

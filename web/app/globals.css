@@ -1,0 +1,255 @@
+@import url("https://fonts.googleapis.com/css2?family=Comic+Neue:ital,wght@0,300;0,400;0,700;1,400&display=swap");
+
+/* ── Tokens ────────────────────────────────────────────────────────────────── */
+:root {
+  --bg:            #0a0a0a;
+  --surface:       rgba(0, 0, 0, 0.82);
+  --surface-hover: rgba(0, 0, 0, 0.92);
+  --border:        rgba(255, 255, 255, 0.18);
+  --border-hover:  rgba(255, 255, 255, 0.55);
+  --border-focus:  #ffffff;
+
+  --text-primary:   #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-muted:     rgba(255, 255, 255, 0.32);
+
+  /* accent kept minimal — the design IS the meme energy */
+  --accent:        #ffffff;
+  --accent-inv:    #000000;
+
+  --radius-sm:  6px;
+  --radius-md:  10px;
+  --radius-lg:  16px;
+
+  --btn-border: 2.5px solid #ffffff;
+}
+
+/* ── Reset ─────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+/* ── Body — meme wallpaper ─────────────────────────────────────────────────── */
+body {
+  font-family: 'Comic Neue', cursive, sans-serif;
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+
+  background:
+    linear-gradient(to bottom, rgba(0,0,0,0.78), rgba(0,0,0,0.72)),
+    url("https://cdn.wallpapersafari.com/60/61/ApeKRU.jpg") center/cover fixed;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.45); }
+
+/* ── Typography ────────────────────────────────────────────────────────────── */
+h1, h2, h3 { font-family: 'Comic Neue', cursive, sans-serif; font-weight: 700; }
+
+/* ── Surface card (glass-dark) ─────────────────────────────────────────────── */
+.glass {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: background 0.2s, border-color 0.2s;
+}
+
+/* ── Buttons — B&W chunky style from original ─────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 22px;
+  border-radius: var(--radius-md);
+  font-family: 'Comic Neue', cursive, sans-serif;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.12s ease, box-shadow 0.2s ease;
+  letter-spacing: 0.01em;
+}
+
+/* Primary: white bg, black text → inverts on hover */
+.btn-primary {
+  background: #ffffff;
+  color: #000000;
+  border: var(--btn-border);
+  box-shadow: none;
+}
+.btn-primary:hover:not(:disabled) {
+  background: #000000;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+.btn-primary:active:not(:disabled) { transform: translateY(0); }
+
+/* Secondary: transparent, white border */
+.btn-secondary {
+  background: rgba(255,255,255,0.06);
+  color: #ffffff;
+  border: var(--btn-border);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: #ffffff;
+  color: #000000;
+  transform: translateY(-1px);
+}
+.btn-secondary:active:not(:disabled) { transform: translateY(0); }
+
+/* Ghost: no border, subtle */
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: rgba(255,255,255,0.06);
+  color: #ffffff;
+  border-color: var(--border);
+}
+
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-lg { padding: 14px 32px; font-size: 1rem; }
+.btn-sm { padding: 7px 14px; font-size: 0.8rem; border-radius: var(--radius-sm); }
+
+/* ── Inputs ────────────────────────────────────────────────────────────────── */
+input[type="text"], input[type="email"], input[type="password"], textarea, select {
+  width: 100%;
+  padding: 11px 14px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: 'Comic Neue', cursive, sans-serif;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: #ffffff;
+  background: rgba(0,0,0,0.65);
+}
+input::placeholder, textarea::placeholder { color: var(--text-muted); }
+
+/* ── Progress bar ──────────────────────────────────────────────────────────── */
+.progress-track {
+  width: 100%;
+  height: 5px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: #ffffff;
+  border-radius: 99px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Animations ────────────────────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.fade-up   { animation: fadeUp 0.4s ease both; }
+.fade-up-1 { animation-delay: 0.07s; }
+.fade-up-2 { animation-delay: 0.14s; }
+.fade-up-3 { animation-delay: 0.21s; }
+.fade-up-4 { animation-delay: 0.28s; }
+
+.spinner {
+  width: 20px; height: 20px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* ── Tag chip ──────────────────────────────────────────────────────────────── */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #ffffff;
+  font-family: 'Comic Neue', cursive, sans-serif;
+}
+.tag button {
+  background: none; border: none; cursor: pointer;
+  color: inherit; line-height: 1; padding: 0;
+  opacity: 0.5; transition: opacity 0.15s;
+}
+.tag button:hover { opacity: 1; }
+
+/* ── Section card ──────────────────────────────────────────────────────────── */
+.section-card {
+  border-radius: var(--radius-lg);
+  padding: 24px 28px;
+}
+
+/* ── Step badge ────────────────────────────────────────────────────────────── */
+.step-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #000000;
+  font-size: 0.72rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  font-family: 'Comic Neue', cursive, sans-serif;
+}
+
+/* ── Select card (model picker) ────────────────────────────────────────────── */
+.select-card {
+  border-radius: var(--radius-md);
+  padding: 14px;
+  cursor: pointer;
+  border: 2px solid var(--border);
+  background: rgba(0,0,0,0.45);
+  transition: border-color 0.2s, background 0.2s, transform 0.12s;
+  text-align: left;
+  color: #ffffff;
+  font-family: 'Comic Neue', cursive, sans-serif;
+}
+.select-card:hover {
+  border-color: rgba(255,255,255,0.5);
+  background: rgba(0,0,0,0.65);
+  transform: translateY(-1px);
+}
+.select-card.selected {
+  border-color: #ffffff;
+  background: rgba(255,255,255,0.08);
+  box-shadow: 0 0 0 1px #ffffff;
+}
+
+/* ── Gradient text (hero) ──────────────────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, #ffffff 0%, rgba(255,255,255,0.65) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

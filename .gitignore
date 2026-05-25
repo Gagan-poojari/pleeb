@@ -1,3 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env
 .venv
-zGuide.txt
-__pycache__
+venv/
+ENV/
+
+# Database
+*.sqlite3
+*.db
+
+# Data & Notebooks (Large files)
+data/
+notebooks/
+*.mp4
+*.mp3
+
+# OS generated files
+.DS_Store
+Thumbs.db
