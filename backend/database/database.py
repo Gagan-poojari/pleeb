@@ -7,6 +7,10 @@ import os
 from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from dotenv import load_dotenv
+
+# Load variables from a local .env file (if it exists)
+load_dotenv()
 
 # Read the connection string from environment variables (set in production)
 DATABASE_URL = os.getenv("DATABASE_URL")

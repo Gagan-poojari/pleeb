@@ -106,7 +106,7 @@ export default function Home() {
             marginBottom: 14,
             letterSpacing: "-0.01em",
           }}>
-            Pleeb — Meme the Mess
+            Pleeb - Meme the Mess
           </h1>
           <p style={{
             fontSize: "1rem",
