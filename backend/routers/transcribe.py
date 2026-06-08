@@ -28,7 +28,7 @@ async def transcribe_video(
     job_dir.mkdir(parents=True, exist_ok=True)
 
     video_path = str(job_dir / "original.mp4")
-    audio_path = str(job_dir / "original.mp3")
+    audio_path = str(job_dir / "original.wav")
 
     with open(video_path, "wb") as f:
         f.write(await video.read())

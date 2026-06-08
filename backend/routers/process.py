@@ -50,8 +50,8 @@ def _run_job(
     from assets.pleeb_words import pleeb_words_list
 
     job_dir   = Path(video_path).parent
-    audio_path        = str(job_dir / "original.mp3")
-    output_audio_path = str(job_dir / "processed.mp3")
+    audio_path        = str(job_dir / "original.wav")
+    output_audio_path = str(job_dir / "processed.wav")
     output_video_path = str(job_dir / "processed.mp4")
 
     try:

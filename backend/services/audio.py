@@ -6,12 +6,35 @@ Handles:
   - Replacing audio intervals with bleep / meme sounds
   - Volume normalisation so replacement sounds match the source level
 
-Changes vs original:
-  - Meme sounds are now bucketed by natural duration (short / medium / long)
-    so longer cuss words get longer meme sounds and vice-versa.
-  - Short-word replacements are hard-trimmed to the interval — no silence
-    padding appended, keeping the overlay tight and in-sync.
-  - Bleep mode unchanged (still tiles the bleep tone to fill the interval).
+Architecture notes
+──────────────────
+Bleep mode
+  The classic bleep tone is tiled to fill the *exact* interval duration.
+  Timeline sync is always preserved.
+
+Meme mode
+  1. A duration-appropriate meme sound is selected (short / medium / long
+     buckets based on the interval length).
+  2. If the sound is ≥ interval duration → hard-trimmed to fit.  No fade;
+     the abrupt cut is intentional comedy timing.
+  3. If the sound is shorter than the interval → the sound plays at its
+     natural length, then the remaining gap is *silenced* (not padded with
+     the original audio, which would leak the censored word back in).
+     Silence keeps perfect timeline sync without audible padding artifacts.
+
+Volume matching
+  Replacement sounds are gain-adjusted to the RMS dBFS of a 500 ms context
+  window surrounding the interval.  Shift is clamped to ±18 dB to prevent
+  extreme distortion.  If either the reference or the sound has no audio
+  energy (dBFS == -inf), the sound is returned unchanged.
+
+Overlap safety
+  Intervals are pre-sorted and checked for non-positive duration before
+  processing, so overlapping or zero-length intervals are skipped cleanly.
+
+Robustness
+  All AudioSegment operations use explicit integer millisecond indices to
+  prevent off-by-one errors from float arithmetic.
 """
 
 import random
@@ -23,34 +46,40 @@ from pydub import AudioSegment
 # ── paths ─────────────────────────────────────────────────────────────────────
 _SOUNDS_DIR = Path(__file__).parent.parent / "sounds"
 
-# Bucketed by each file's natural playback duration.
-# Adjust thresholds below if you add / swap sounds.
-_SHORT_SOUNDS  = ["bruh.mp3", "nope.mp3", "yeet.mp3"]                        # natural len < 800 ms
-_MEDIUM_SOUNDS = ["huh.mp3", "minecraft_oof.mp3", "windows_error.mp3"]        # 800 ms – 1 800 ms
-_LONG_SOUNDS   = ["screaming_sheep.mp3", "metal_boom.mp3"]                    # > 1 800 ms
+# Meme sounds bucketed by natural playback duration.
+# Adjust filenames / thresholds if you add or swap sounds.
+_SHORT_SOUNDS  = ["bruh.mp3", "nope.mp3", "yeet.mp3"]          # natural len < 800 ms
+_MEDIUM_SOUNDS = ["huh.mp3", "minecraft_oof.mp3", "windows_error.mp3"]  # 800–1 800 ms
+_LONG_SOUNDS   = ["screaming_sheep.mp3", "metal_boom.mp3"]      # > 1 800 ms
 
-# Duration thresholds (milliseconds) that decide which bucket to use
-_SHORT_THRESHOLD  = 800    # interval < 800 ms  → short sound
-_MEDIUM_THRESHOLD = 1_800  # interval < 1 800 ms → medium sound
-                           # interval ≥ 1 800 ms → long sound
+_SHORT_THRESHOLD  = 800     # interval ms < this  → short bucket
+_MEDIUM_THRESHOLD = 1_800   # interval ms < this  → medium bucket; else long
 
-# Cache loaded AudioSegments so we don't hit disk on every word
+# Lazy-loaded AudioSegment cache (populated on first use, reused after)
 _sound_cache: Dict[str, AudioSegment] = {}
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Internal helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
 def _load(filename: str) -> AudioSegment:
+    """Load a sound file, caching the result for the lifetime of the process."""
     if filename not in _sound_cache:
-        _sound_cache[filename] = AudioSegment.from_mp3(_SOUNDS_DIR / filename)
+        path = _SOUNDS_DIR / filename
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Sound file not found: {path}. "
+                "Ensure all required meme/bleep files are present in the sounds/ directory."
+            )
+        # Format-agnostic load lets us keep legacy MP3 assets while allowing
+        # new WAV assets (recommended for sample-accurate timing).
+        _sound_cache[filename] = AudioSegment.from_file(path)
     return _sound_cache[filename]
 
 
-# ── helpers ───────────────────────────────────────────────────────────────────
-
 def _pick_meme_sound(duration_ms: int) -> str:
-    """
-    Return the filename of a meme sound whose natural length is appropriate
-    for the given interval duration.
-    """
+    """Select a meme-sound filename whose natural length suits duration_ms."""
     if duration_ms < _SHORT_THRESHOLD:
         return random.choice(_SHORT_SOUNDS)
     elif duration_ms < _MEDIUM_THRESHOLD:
@@ -61,39 +90,69 @@ def _pick_meme_sound(duration_ms: int) -> str:
 
 def _fit_sound(sound: AudioSegment, duration_ms: int) -> AudioSegment:
     """
-    Fit a sound to exactly duration_ms milliseconds.
+    Return the sound trimmed to at most duration_ms.
 
-    Strategy (in priority order):
-      1. If the sound is longer than the interval → hard trim.  No fade; the
-         abrupt cut is intentional (comedy timing) and stays in sync.
-      2. If the sound is shorter than the interval → keep the sound at its
-         natural length rather than padding with silence.  The original audio
-         will resume immediately after, which sounds far more natural than a
-         dead pad.  The caller is responsible for adjusting the cursor if the
-         sound is shorter than the interval.
+    If the sound is already shorter than the interval it is returned as-is.
+    The caller is responsible for deciding how to handle the remaining gap
+    (see apply_audio_replacements for the silence-fill strategy).
     """
     if len(sound) >= duration_ms:
         return sound[:duration_ms]
-    # Sound is shorter — return as-is; caller decides how to handle the gap
     return sound
 
 
-def _match_volume(sound: AudioSegment, reference: AudioSegment) -> AudioSegment:
+def _match_volume(
+    sound: AudioSegment,
+    reference: AudioSegment,
+) -> AudioSegment:
     """
-    Adjust sound's volume so it roughly matches the reference dBFS.
-    Clamps the shift to ±18 dB to avoid extreme distortion.
+    Gain-adjust *sound* so its dBFS roughly matches *reference*.
+
+    • If reference is empty or silent (-inf dBFS) → return sound unchanged.
+    • If sound itself has no energy (-inf dBFS) → return sound unchanged.
+    • Gain shift is clamped to ±18 dB to avoid extreme distortion.
     """
     if len(reference) == 0:
         return sound
+
     ref_dbfs = reference.dBFS
     snd_dbfs = sound.dBFS
+
     if ref_dbfs == float("-inf") or snd_dbfs == float("-inf"):
         return sound
+
     shift = max(-18.0, min(18.0, ref_dbfs - snd_dbfs))
-    return sound + shift
+    return sound.apply_gain(shift)
 
 
-# ── public API ────────────────────────────────────────────────────────────────
+def _build_context_reference(
+    audio: AudioSegment,
+    start: int,
+    end: int,
+    context_ms: int = 500,
+) -> AudioSegment:
+    """
+    Return the audio immediately before and after the interval concatenated.
+    Used as the volume-matching reference so the replacement blends in.
+
+    Using surrounding context (rather than the interval itself) avoids
+    using the cuss word's own energy as the reference, which would be
+    self-defeating after we've silenced it.
+    """
+    total = len(audio)
+    before = audio[max(0, start - context_ms) : start]
+    after  = audio[end : min(total, end + context_ms)]
+    combined = before + after
+    # If the surrounding region is silent/empty, return original interval audio
+    # as a fallback reference so we still get a reasonable volume match.
+    if len(combined) == 0:
+        return audio[start:end]
+    return combined
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Public API
+# ─────────────────────────────────────────────────────────────────────────────
 
 def apply_audio_replacements(
     source_audio_path: str,
@@ -102,54 +161,55 @@ def apply_audio_replacements(
     mode: str,          # "bleep" | "meme"
 ) -> None:
     """
-    Replace every interval in the source audio with the chosen sound.
+    Replace every interval in the source audio with the chosen censorship sound.
 
     Args:
-        source_audio_path:  Path to the extracted MP3 / WAV.
-        output_audio_path:  Where to write the processed audio.
-        intervals:          List of {"start_ms": int, "end_ms": int}.
-        mode:               "bleep" uses the classic bleep tone;
-                            "meme" picks a duration-appropriate meme sound.
+        source_audio_path:  Path to the extracted WAV / MP3 / any pydub-
+                            supported format.
+        output_audio_path:  Destination path for processed audio (WAV recommended).
+        intervals:          List of {"start_ms": int, "end_ms": int} dicts.
+                            May be unordered; overlapping intervals are handled
+                            gracefully (later interval's start is clamped to
+                            the current cursor, preventing double-processing).
+        mode:               "bleep" → tiles the classic bleep tone.
+                            "meme"  → picks a duration-appropriate meme sound.
 
-    Sync guarantee
-    ──────────────
-    In bleep mode the replacement always fills the exact interval so the
-    cursor advances to `end`.
-
-    In meme mode:
-      • If the chosen sound is ≥ interval duration → trimmed to fit; cursor
-        advances to `end`.  Original audio resumes exactly on time.
-      • If the chosen sound is < interval duration → played at natural length,
-        then the *remaining* slice of the original interval is silenced (muted)
-        rather than leaving dead air or using an audible pad.  This keeps
-        timeline sync perfect while avoiding jarring padding noise.
+    Timeline sync guarantee
+    ───────────────────────
+    In all cases the output audio is exactly as long as the source audio.
+    The cursor always advances to `end` after each interval, ensuring every
+    sample of the original audio appears exactly once in the output (either
+    as original audio or as a replacement/silence).
     """
+    if mode not in ("bleep", "meme"):
+        raise ValueError(f"mode must be 'bleep' or 'meme', got {mode!r}")
+
     audio  = AudioSegment.from_file(source_audio_path)
     bleep  = _load("bleep.mp3")
     output = AudioSegment.empty()
-    cursor = 0
+    cursor = 0  # tracks how far we've consumed the source audio (ms)
 
     for iv in sorted(intervals, key=lambda x: x["start_ms"]):
-        start    = max(0, iv["start_ms"])
-        end      = min(len(audio), iv["end_ms"])
+        # Clamp to valid range and guard against overlapping intervals
+        start    = max(cursor, int(iv["start_ms"]))
+        end      = min(len(audio), int(iv["end_ms"]))
         duration = end - start
 
         if duration <= 0:
             continue
 
-        # Append original audio up to the replacement point
+        # Append original audio from cursor up to the start of this interval
         output += audio[cursor:start]
 
-        # ── volume reference (500 ms either side) ────────────────────────
-        surrounding = (
-            audio[max(0, start - 500) : start]
-            + audio[end : min(len(audio), end + 500)]
-        )
+        # Build context reference for volume matching
+        reference = _build_context_reference(audio, start, end)
 
         if mode == "bleep":
-            # Tile bleep to exactly fill the interval
-            raw_sound   = (bleep * ((duration // len(bleep)) + 2))[:duration]
-            replacement = _match_volume(raw_sound, surrounding)
+            # Tile bleep to exactly fill the interval — guarantees sync.
+            bleep_len   = len(bleep)
+            repeat_count = (duration // bleep_len) + 2
+            tiled       = (bleep * repeat_count)[:duration]
+            replacement = _match_volume(tiled, reference)
             output     += replacement
             cursor       = end
 
@@ -157,20 +217,33 @@ def apply_audio_replacements(
             chosen_file = _pick_meme_sound(duration)
             raw_sound   = _load(chosen_file)
             fitted      = _fit_sound(raw_sound, duration)
-            replacement = _match_volume(fitted, surrounding)
+            replacement = _match_volume(fitted, reference)
 
-            if len(fitted) >= duration:
-                # Sound fills (or was trimmed to fill) the whole interval
-                output += replacement
-                cursor  = end
-            else:
-                # Sound is shorter than the interval:
-                # play the sound, then mute the remaining gap to keep sync.
-                gap_ms  = duration - len(fitted)
-                silence = AudioSegment.silent(duration=gap_ms)
-                output += replacement + silence
-                cursor  = end
+            output += replacement
 
-    # Append any remaining original audio
+            # If the sound is shorter than the interval, silence the remainder.
+            # This is critical: we must NOT play original audio here because
+            # it would reveal the censored word.  Silence preserves sync and
+            # sounds far more natural than any padding alternative.
+            fitted_len = len(fitted)
+            if fitted_len < duration:
+                gap_ms  = duration - fitted_len
+                output += AudioSegment.silent(duration=gap_ms)
+
+            cursor = end  # always advance to end to maintain sync
+
+    # Append all remaining original audio after the last interval
     output += audio[cursor:]
-    output.export(output_audio_path, format="mp3")
+
+    # Sanity check: warn (but don't crash) if lengths diverge by > 10 ms.
+    # Small diffs may occur due to millisecond rounding during segment edits.
+    length_diff = abs(len(output) - len(audio))
+    if length_diff > 10:
+        import warnings
+        warnings.warn(
+            f"Output audio length ({len(output)} ms) differs from source "
+            f"({len(audio)} ms) by {length_diff} ms.  This may indicate "
+            "overlapping input intervals."
+        )
+
+    output.export(output_audio_path, format="wav")
