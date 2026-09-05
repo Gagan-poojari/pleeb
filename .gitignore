@@ -1,18 +1,44 @@
-# Python
+# ==============================================================================
+# Central .gitignore for Pleeb (FastAPI Backend + Next.js Web)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Frontend / Next.js (web/)
+# ------------------------------------------------------------------------------
+node_modules/
+web/node_modules/
+.next/
+web/.next/
+web/out/
+web/build/
+*.tsbuildinfo
+.vercel
+
+# Explicitly ensure web source code is NEVER ignored
+!web/lib/
+!web/lib/**
+!web/public/
+!web/public/**
+
+# Package manager debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ------------------------------------------------------------------------------
+# Backend / Python
+# ------------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
-build/
 develop-eggs/
 dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
 parts/
 sdist/
 var/
@@ -21,23 +47,43 @@ var/
 *.egg
 
 # Virtual environments
-.env
-.venv
+.venv/
 venv/
+env/
 ENV/
+
+# Backend scratch jobs (job outputs)
+backend/jobs/*
+!backend/jobs/.gitkeep
 
 # Database
 *.sqlite3
 *.db
 
-# Data & Notebooks (Large files)
+# ------------------------------------------------------------------------------
+# Environment Variables & Secrets (Keep .example files committed)
+# ------------------------------------------------------------------------------
+.env
+.env*.local
+backend/.env
+web/.env.local
+confid.md
+*.pem
+
+# ------------------------------------------------------------------------------
+# Large media / scratch datasets
+# ------------------------------------------------------------------------------
 data/
 notebooks/
 *.mp4
 *.mp3
 
-# OS generated files
+# ------------------------------------------------------------------------------
+# OS / Editor Files
+# ------------------------------------------------------------------------------
 .DS_Store
 Thumbs.db
-
-confid.md
+*.swp
+*.swo
+.vscode/
+.idea/
