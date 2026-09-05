@@ -9,6 +9,7 @@ Flow:
   GET  /api/process/{id}/download → FileResponse with processed video
 """
 
+import re
 import uuid
 import json
 import asyncio
@@ -70,7 +71,9 @@ def _run_job(
 
         # ── stage 3: match words ──────────────────────────────────────────
         _set(job_id, stage="matching", progress=60)
-        targets   = pleeb_words_list if mode in ("auto_bleep", "meme") else word_list
+        targets = list(pleeb_words_list) if mode in ("auto_bleep", "meme") else []
+        if word_list:
+            targets = list(set(targets + word_list))
         intervals = find_matches(targets, segments)
 
         # ── stage 4: replace audio ────────────────────────────────────────
@@ -115,7 +118,7 @@ async def start_process(
     with open(video_path, "wb") as f:
         f.write(await video.read())
 
-    word_list = [w.strip() for w in words.split(",") if w.strip()]
+    word_list = [w.strip() for w in re.split(r"[,;\n]+", words) if w.strip()]
 
     _jobs[job_id] = {
         "status":      "processing",

@@ -153,7 +153,7 @@ def transcribe_audio(
             # This is whisper_timestamped's main value-add over vanilla Whisper
             # and significantly tightens per-word start/end accuracy.
             refine_whisper_precision=0.2,   # seconds; smaller = more precise
-            min_word_dur=0.02,              # discard sub-20 ms "words"
+            min_word_duration=0.02,         # discard sub-20 ms "words"
         )
     except Exception as exc:
         raise RuntimeError(

@@ -78,9 +78,11 @@ pleeb_words_list = [
     "shitblimp",
     "shitty",
     "smartass",
+    "stfu",
     "twat",
     "wank",
     "whore",
+    "wtf",
 
     # ── SEXUAL — anatomy ──────────────────────────────────────────────────────
     "anus",

@@ -15,8 +15,13 @@ uvicorn[standard]>=0.29.0
 python-multipart>=0.0.9      # required for UploadFile / Form
 sse-starlette>=1.8.2         # Server-Sent Events for progress streaming
 
-# -- Database --------------------------------------------------------------
+# -- Database & Auth --------------------------------------------------------
 sqlalchemy
 psycopg2-binary
-
 python-dotenv
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt
+
+# -- NLP -------------------------------------------------------------------
+nltk

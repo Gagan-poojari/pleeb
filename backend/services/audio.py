@@ -47,13 +47,13 @@ from pydub import AudioSegment
 _SOUNDS_DIR = Path(__file__).parent.parent / "sounds"
 
 # Meme sounds bucketed by natural playback duration.
-# Adjust filenames / thresholds if you add or swap sounds.
-_SHORT_SOUNDS  = ["bruh.mp3", "nope.mp3", "yeet.mp3"]          # natural len < 800 ms
-_MEDIUM_SOUNDS = ["huh.mp3", "minecraft_oof.mp3", "windows_error.mp3"]  # 800–1 800 ms
-_LONG_SOUNDS   = ["screaming_sheep.mp3", "metal_boom.mp3"]      # > 1 800 ms
+# Sound files in sounds/ are high-fidelity WAV assets.
+_SHORT_SOUNDS  = ["bruh.wav", "nope.wav", "minecraft_oof.wav"]          # natural len < 500 ms
+_MEDIUM_SOUNDS = ["huh.wav", "yeet.wav", "windows_error.wav"]           # 500–900 ms
+_LONG_SOUNDS   = ["screaming_sheep.wav", "metal_boom.wav"]              # > 900 ms
 
-_SHORT_THRESHOLD  = 800     # interval ms < this  → short bucket
-_MEDIUM_THRESHOLD = 1_800   # interval ms < this  → medium bucket; else long
+_SHORT_THRESHOLD  = 500     # interval ms < this  → short bucket
+_MEDIUM_THRESHOLD = 900     # interval ms < this  → medium bucket; else long
 
 # Lazy-loaded AudioSegment cache (populated on first use, reused after)
 _sound_cache: Dict[str, AudioSegment] = {}
@@ -68,13 +68,17 @@ def _load(filename: str) -> AudioSegment:
     if filename not in _sound_cache:
         path = _SOUNDS_DIR / filename
         if not path.exists():
-            raise FileNotFoundError(
-                f"Sound file not found: {path}. "
-                "Ensure all required meme/bleep files are present in the sounds/ directory."
-            )
-        # Format-agnostic load lets us keep legacy MP3 assets while allowing
-        # new WAV assets (recommended for sample-accurate timing).
-        _sound_cache[filename] = AudioSegment.from_file(path)
+            # Transparent fallback between .wav and .mp3
+            alt_ext = ".wav" if path.suffix.lower() == ".mp3" else ".mp3"
+            alt_path = path.with_suffix(alt_ext)
+            if alt_path.exists():
+                path = alt_path
+            else:
+                raise FileNotFoundError(
+                    f"Sound file not found: {path} (or {alt_path}). "
+                    "Ensure all required meme/bleep files are present in the sounds/ directory."
+                )
+        _sound_cache[filename] = AudioSegment.from_file(str(path))
     return _sound_cache[filename]
 
 
@@ -185,7 +189,7 @@ def apply_audio_replacements(
         raise ValueError(f"mode must be 'bleep' or 'meme', got {mode!r}")
 
     audio  = AudioSegment.from_file(source_audio_path)
-    bleep  = _load("bleep.mp3")
+    bleep  = _load("bleep.wav")
     output = AudioSegment.empty()
     cursor = 0  # tracks how far we've consumed the source audio (ms)
 
@@ -210,6 +214,9 @@ def apply_audio_replacements(
             repeat_count = (duration // bleep_len) + 2
             tiled       = (bleep * repeat_count)[:duration]
             replacement = _match_volume(tiled, reference)
+            # 5ms micro-fade prevents DC clicks at boundary cuts
+            fade_len = min(5, max(1, duration // 4))
+            replacement = replacement.fade_in(fade_len).fade_out(fade_len)
             output     += replacement
             cursor       = end
 
@@ -218,12 +225,14 @@ def apply_audio_replacements(
             raw_sound   = _load(chosen_file)
             fitted      = _fit_sound(raw_sound, duration)
             replacement = _match_volume(fitted, reference)
+            fade_len    = min(5, max(1, len(fitted) // 4))
+            replacement = replacement.fade_in(fade_len).fade_out(fade_len)
 
             output += replacement
 
             # If the sound is shorter than the interval, silence the remainder.
             # This is critical: we must NOT play original audio here because
-            # it would reveal the censored word.  Silence preserves sync and
+            # it would reveal the censored word. Silence preserves sync and
             # sounds far more natural than any padding alternative.
             fitted_len = len(fitted)
             if fitted_len < duration:

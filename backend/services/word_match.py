@@ -94,6 +94,9 @@ _LEET_MAP: Dict[str, str] = {
 # Regex that matches any leet character (pre-compiled for speed)
 _LEET_RE = re.compile("[" + re.escape("".join(_LEET_MAP.keys())) + "]")
 
+# Regex: strip leading/trailing punctuation and whitespace BEFORE leet mapping
+_BOUNDARY_PUNCT_RE = re.compile(r"^[\s!?,.:;\"'()\[\]{}<>\-_~*#%/\\]+|[\s!?,.:;\"'()\[\]{}<>\-_~*#%/\\]+$")
+
 # Regex: strip leading/trailing non-alpha after leet reversal
 _TRIM_NON_ALPHA = re.compile(r"^[^a-z]+|[^a-z]+$")
 
@@ -109,10 +112,12 @@ def _pre_normalise(text: str) -> str:
     ─────
     1. Unicode normalise (NFKD) so accented variants collapse.
     2. Lowercase.
-    3. Map leet/obfuscation characters.
-    4. Strip leading/trailing non-alpha.
-    5. Remove apostrophes / Unicode right-quotes.
-    6. Collapse excessive repetition (fuuuck → fuuck).
+    3. Strip outer punctuation (e.g. 'fuck!' -> 'fuck', 'shit,' -> 'shit')
+       BEFORE leet mapping, preventing '!' or '$' from corrupting words.
+    4. Map interior leet/obfuscation characters (sh!t -> shit, f*ck -> fck).
+    5. Strip any residual leading/trailing non-alpha.
+    6. Remove apostrophes / Unicode right-quotes.
+    7. Collapse excessive repetition (fuuuck → fuuck).
 
     Returns empty string for tokens that become empty after normalisation.
     """
@@ -123,16 +128,20 @@ def _pre_normalise(text: str) -> str:
     # 2. Lowercase
     text = text.lower()
 
-    # 3. Leet substitution
+    # 3. Strip outer punctuation FIRST so natural sentence punctuation
+    # (e.g., 'fuck!', 'shit.') is never confused with interior leetspeak.
+    text = _BOUNDARY_PUNCT_RE.sub("", text)
+
+    # 4. Leet substitution for interior characters
     text = _LEET_RE.sub(lambda m: _LEET_MAP[m.group()], text)
 
-    # 4. Trim non-alpha
+    # 5. Trim non-alpha
     text = _TRIM_NON_ALPHA.sub("", text)
 
-    # 5. Apostrophes
+    # 6. Apostrophes
     text = text.replace("'", "").replace("\u2019", "")
 
-    # 6. Collapse repeats
+    # 7. Collapse repeats
     text = _REPEAT_RE.sub(r"\1\1", text)
 
     return text
@@ -214,12 +223,14 @@ def _get_variants(word: str) -> Set[str]:
         normalised_tokens = [_normalise(t) for t in tokens]
         pre_tokens        = [_pre_normalise(t) for t in tokens]
         result: Set[str] = set()
-        # Exact pre-normalised phrase
+        # Spaced and unspaced pre-normalised phrases (e.g. "bull shit" and "bullshit")
         if all(pre_tokens):
             result.add(" ".join(pre_tokens))
-        # Lemmatised phrase
+            result.add("".join(pre_tokens))
+        # Spaced and unspaced lemmatised phrases
         if all(normalised_tokens):
             result.add(" ".join(normalised_tokens))
+            result.add("".join(normalised_tokens))
         return result
 
     # Single-word target
@@ -235,6 +246,13 @@ def _get_variants(word: str) -> Set[str]:
     variants.update(_suffix_variants(pre))
     # Always include the pre-normalised form itself (exact match safety net)
     variants.add(pre)
+
+    # Vowel-stripped root (catches asterisk-masked profanity like f*ck -> fck, sh*t -> sht)
+    for base in (lemma, pre):
+        vowel_stripped = re.sub(r"[aeiou]", "", base)
+        if len(vowel_stripped) >= 2:
+            variants.add(vowel_stripped)
+
     return variants
 
 
@@ -282,13 +300,13 @@ def _phonetic_match(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _merge_intervals(
-    intervals: List[Tuple[int, int]], gap_ms: int = 120
+    intervals: List[Tuple[int, int]], gap_ms: int = 180
 ) -> List[Tuple[int, int]]:
     """
     Merge overlapping or near-adjacent (within gap_ms) [start, end] intervals.
 
-    gap_ms = 120 ms fuses closely spaced words ("what the f***") into a single
-    bleep, eliminating audible micro-gaps between adjacent replacements.
+    gap_ms = 180 ms fuses closely spaced words ("what the f***", "holy shit")
+    into a single bleep, eliminating audible micro-gaps between adjacent replacements.
     """
     if not intervals:
         return []
@@ -313,23 +331,23 @@ def _asymmetric_pad(
     Front pad = 1.5 × base
     ──────────────────────
     Whisper marks a word's start *after* sufficient acoustic evidence has
-    accumulated — always a few ms late.  The extra lead-in compensates for
+    accumulated — always a few ms late. The extra lead-in compensates for
     this systematic lag so the cuss word is never audible before the bleep.
 
-    Tail pad = 0.6 × base
+    Tail pad = 0.85 × base
     ──────────────────────
-    End timestamps are more accurate (energy drop is sharp).  A shorter tail
-    reduces bleed into the following word, especially critical in rapid speech.
+    End timestamps are more accurate, but trailing plosives/fricatives ("-ck", "-t")
+    require sufficient padding to ensure no trailing audio artifact leaks.
 
     Dynamic scaling
     ───────────────
-    The actual pad is max(base_padding_ms, 10% of word duration) so short
+    The actual pad is max(base_padding_ms, 12% of word duration) so short
     words still get a meaningful buffer while long words don't get over-padded.
     """
     duration_ms = max(0.0, (end_s - start_s) * 1000)
-    dynamic_pad = max(base_padding_ms, int(duration_ms * 0.10))
+    dynamic_pad = max(base_padding_ms, int(duration_ms * 0.12))
     front_pad   = int(dynamic_pad * 1.5)
-    tail_pad    = int(dynamic_pad * 0.6)
+    tail_pad    = int(dynamic_pad * 0.85)
     start_ms    = max(0, int(start_s * 1000) - front_pad)
     end_ms      = int(end_s * 1000) + tail_pad
     return start_ms, end_ms
@@ -342,22 +360,23 @@ def _asymmetric_pad(
 def find_matches(
     target_words: List[str],
     segments: List[Dict],
-    confidence_threshold: float = 0.30,
-    base_padding_ms: int = 50,
+    confidence_threshold: float = 0.20,
+    base_padding_ms: int = 75,
     phonetic: bool = False,
 ) -> List[Dict]:
     """
     Find all occurrences of target_words in a Whisper timestamped transcript.
 
     Args:
-        target_words:         Words/phrases to censor.  Can be single words
+        target_words:         Words/phrases to censor. Can be single words
                               or space-separated phrases ("bull shit").
         segments:             Whisper-timestamped segment list, each containing
                               a "words" key with per-word dicts.
         confidence_threshold: Drop words with confidence below this value.
-                              Range 0.0–1.0.  Default 0.30.
-        base_padding_ms:      Minimum ms added around each match.
-                              Front pad = 1.5×, tail pad = 0.6× this value.
+                              Default 0.20 to catch low-confidence profanity
+                              without false positives.
+        base_padding_ms:      Minimum ms added around each match (default 75ms).
+                              Front pad = 1.5×, tail pad = 0.85× this value.
         phonetic:             If True (and jellyfish is installed), also match
                               words whose Soundex code equals a target's.
                               Increases recall at the cost of more false positives.
@@ -378,15 +397,11 @@ def find_matches(
 
     raw_intervals: List[Tuple[int, int]] = []
 
-    # dedup key: (start_ms_rounded, normalised_text) — using integer ms avoids
-    # float rounding edge-cases that tripped the previous (round(x,2)) scheme.
+    # dedup key: (start_ms_rounded, normalised_text)
     seen: Set[Tuple[int, str]] = set()
 
     for i, word in enumerate(all_words):
         # ── confidence gate ───────────────────────────────────────────────
-        # Missing confidence → 0.5 (neutral uncertainty), NOT 1.0.
-        # A score of 1.0 would let unchecked words sail through; 0.5 means
-        # "we don't know" which is appropriately cautious for a censor.
         conf = word.get("confidence", 0.5)
         if conf < confidence_threshold:
             continue
@@ -415,20 +430,28 @@ def find_matches(
                 )
 
         # ── bigram match (tokens i and i+1) ──────────────────────────────
-        # Key stored as "word1 word2" (space-separated), matching how
-        # build_target_set() indexes multi-word phrases.
+        # Handles both spaced ("bull shit") and concatenated ("bullshit")
         if i + 1 < len(all_words):
             nxt         = all_words[i + 1]
             nxt_conf    = nxt.get("confidence", 0.5)
             nxt_norm    = _normalise(nxt.get("text", ""))
             nxt_pre     = _pre_normalise(nxt.get("text", ""))
 
-            if nxt_conf >= confidence_threshold and nxt_norm:
-                bigram     = f"{norm} {nxt_norm}"
-                bigram_pre = f"{pre_norm} {nxt_pre}"
-                bi_key     = (start_key, bigram)
+            if nxt_conf >= confidence_threshold and (nxt_norm or nxt_pre):
+                bigram            = f"{norm} {nxt_norm}"
+                bigram_pre        = f"{pre_norm} {nxt_pre}"
+                bigram_joined     = f"{norm}{nxt_norm}"
+                bigram_pre_joined = f"{pre_norm}{nxt_pre}"
+                bi_key            = (start_key, bigram)
 
-                if (bigram in target_set or bigram_pre in target_set) and bi_key not in seen:
+                matched_bigram = (
+                    bigram in target_set or
+                    bigram_pre in target_set or
+                    bigram_joined in target_set or
+                    bigram_pre_joined in target_set
+                )
+
+                if matched_bigram and bi_key not in seen:
                     seen.add(bi_key)
                     raw_intervals.append(
                         _asymmetric_pad(word["start"], nxt["end"], base_padding_ms)
@@ -446,18 +469,27 @@ def find_matches(
             nxt2_pre     = _pre_normalise(nxt2.get("text", ""))
 
             if (
-                mid_conf  >= confidence_threshold and mid_norm  and
-                nxt2_conf >= confidence_threshold and nxt2_norm
+                mid_conf  >= confidence_threshold and (mid_norm or mid_pre) and
+                nxt2_conf >= confidence_threshold and (nxt2_norm or nxt2_pre)
             ):
-                trigram     = f"{norm} {mid_norm} {nxt2_norm}"
-                trigram_pre = f"{pre_norm} {mid_pre} {nxt2_pre}"
-                tri_key     = (start_key, trigram)
+                trigram            = f"{norm} {mid_norm} {nxt2_norm}"
+                trigram_pre        = f"{pre_norm} {mid_pre} {nxt2_pre}"
+                trigram_joined     = f"{norm}{mid_norm}{nxt2_norm}"
+                trigram_pre_joined = f"{pre_norm}{mid_pre}{nxt2_pre}"
+                tri_key            = (start_key, trigram)
 
-                if (trigram in target_set or trigram_pre in target_set) and tri_key not in seen:
+                matched_trigram = (
+                    trigram in target_set or
+                    trigram_pre in target_set or
+                    trigram_joined in target_set or
+                    trigram_pre_joined in target_set
+                )
+
+                if matched_trigram and tri_key not in seen:
                     seen.add(tri_key)
                     raw_intervals.append(
                         _asymmetric_pad(word["start"], nxt2["end"], base_padding_ms)
                     )
 
-    merged = _merge_intervals(raw_intervals)
+    merged = _merge_intervals(raw_intervals, gap_ms=180)
     return [{"start_ms": s, "end_ms": e} for s, e in merged]
