@@ -11,7 +11,7 @@ interface Props {
   defaultTab?: "login" | "register";
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_API_URL || "";
 
 export default function AuthModal({ open, onClose, defaultTab = "login" }: Props) {
   const { refresh } = useAuth();

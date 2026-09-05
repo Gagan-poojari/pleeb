@@ -35,7 +35,7 @@ const AuthContext = createContext<AuthState>({
   logout: async () => {},
 });
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_API_URL || "";
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 

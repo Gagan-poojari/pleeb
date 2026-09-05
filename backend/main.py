@@ -71,7 +71,17 @@ app.include_router(auth_router)
 app.include_router(process.router,    prefix="/api", tags=["process"])
 app.include_router(transcribe.router, prefix="/api", tags=["transcribe"])
 
-# ── health check ──────────────────────────────────────────────────────────────
+# ── health & root check ────────────────────────────────────────────────────────
+
+@app.get("/", tags=["root"])
+async def root():
+    return {
+        "status": "ok",
+        "service": "Pleeb API",
+        "version": "2.0.0",
+        "docs": "/docs",
+        "health": "/health",
+    }
 
 @app.get("/health", tags=["health"])
 async def health():
