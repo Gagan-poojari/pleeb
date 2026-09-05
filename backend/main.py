@@ -43,14 +43,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Allow the Next.js dev server (port 3000) and any production domain
+import os
+
+# Allow the Next.js dev server, production domain, and all Vercel previews
+origins_env = os.getenv("ALLOWED_ORIGINS", "")
+custom_origins = [o.strip() for o in origins_env.split(",") if o.strip()]
+allowed_origins = list(set([
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://pleeb.vercel.app",
+] + custom_origins))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://pleeb.vercel.app",          # swap for your prod domain
-    ],
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
