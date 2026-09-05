@@ -1,8 +1,8 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 
-# ── existing Pleeb deps (keep in sync with root requirements.txt) ─────────────
+# ── existing Pleeb deps ───────────────────────────────────────────────────────
 torch==2.2.1+cpu
-numpy>=1.23.0
+numpy>=1.23.0,<2.0.0
 whisper-timestamped>=1.15.0
 moviepy>=1.0.3
 pydub>=0.25.1
@@ -15,13 +15,15 @@ uvicorn[standard]>=0.29.0
 python-multipart>=0.0.9      # required for UploadFile / Form
 sse-starlette>=1.8.2         # Server-Sent Events for progress streaming
 
-# -- Database & Auth --------------------------------------------------------
+# ── Database & Auth ───────────────────────────────────────────────────────────
 sqlalchemy
 psycopg2-binary
 python-dotenv
 python-jose[cryptography]
 passlib[bcrypt]
 bcrypt
+email-validator>=2.0.0
 
-# -- NLP -------------------------------------------------------------------
+# ── NLP & Phonetics ───────────────────────────────────────────────────────────
 nltk
+jellyfish>=1.0.0
