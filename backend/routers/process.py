@@ -59,11 +59,13 @@ def _run_job(
         # ── stage 1: extract audio ────────────────────────────────────────
         _set(job_id, stage="extracting", progress=8)
         extract_audio(video_path, audio_path)
+        import gc; gc.collect()
 
         # ── stage 2: transcribe ───────────────────────────────────────────
         _set(job_id, stage="transcribing", progress=25)
         transcript, segments = transcribe_audio(audio_path, model_name=model)
         _set(job_id, transcript=transcript)
+        gc.collect()
 
         if mode == "transcribe_only":
             _set(job_id, stage="done", progress=100, status="done")
@@ -80,10 +82,12 @@ def _run_job(
         _set(job_id, stage="processing", progress=75)
         sound_mode = "meme" if mode == "meme" else "bleep"
         apply_audio_replacements(audio_path, output_audio_path, intervals, sound_mode)
+        gc.collect()
 
         # ── stage 5: compose final video ──────────────────────────────────
         _set(job_id, stage="composing", progress=90)
         compose_video(video_path, output_audio_path, output_video_path)
+        gc.collect()
 
         _set(
             job_id,
@@ -103,7 +107,7 @@ def _run_job(
 async def start_process(
     video: UploadFile,
     mode:  str = Form("auto_bleep"),
-    model: str = Form("base"),
+    model: str = Form("tiny"),
     words: str = Form(""),
 ):
     """

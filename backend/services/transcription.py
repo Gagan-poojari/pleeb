@@ -138,42 +138,42 @@ def transcribe_audio(
     """
     model = get_model(model_name)
 
+    beam_size = int(os.getenv("WHISPER_BEAM_SIZE", "1"))
+
     try:
-        result = wts.transcribe(
-            model,
-            audio_path,
-            verbose=False,
+        with torch.inference_mode():
+            result = wts.transcribe(
+                model,
+                audio_path,
+                verbose=False,
 
-            # ── accuracy settings ─────────────────────────────────────────
-            beam_size=5,
-            temperature=0.0,        # deterministic; no sampling noise
+                # ── memory & speed settings ───────────────────────────────────
+                beam_size=beam_size,
+                temperature=0.0,        # deterministic; no sampling noise
 
-            # Prevent hallucination cascades between segments.
-            # This is the single most impactful accuracy improvement for
-            # long-form content with pauses or background noise.
-            condition_on_previous_text=False,
+                # Prevent hallucination cascades between segments.
+                condition_on_previous_text=False,
 
-            # Discard "no speech" segments — reduces phantom words in
-            # silent/music-only passages.
-            no_speech_threshold=0.6,
+                # Discard "no speech" segments — reduces phantom words in
+                # silent/music-only passages.
+                no_speech_threshold=0.6,
 
-            # Discard suspiciously repetitive segments (hallucination guard).
-            compression_ratio_threshold=2.4,
+                # Discard suspiciously repetitive segments (hallucination guard).
+                compression_ratio_threshold=2.4,
 
-            # Auto-detect language for maximum accuracy across all content.
-            language=None,
+                # Auto-detect language for maximum accuracy across all content.
+                language=None,
 
-            # ── timestamp settings ────────────────────────────────────────
-            # Refine word-level timestamps using Dynamic Time Warping.
-            # This is whisper_timestamped's main value-add over vanilla Whisper
-            # and significantly tightens per-word start/end accuracy.
-            refine_whisper_precision=0.2,   # seconds; smaller = more precise
-            min_word_duration=0.02,         # discard sub-20 ms "words"
-        )
+                # ── timestamp settings ────────────────────────────────────────
+                refine_whisper_precision=0.2,   # seconds; smaller = more precise
+                min_word_duration=0.02,         # discard sub-20 ms "words"
+            )
     except Exception as exc:
         raise RuntimeError(
             f"Transcription failed for '{audio_path}': {exc}"
         ) from exc
+    finally:
+        gc.collect()
 
     transcript: str       = result.get("text", "")
     segments:   List[Dict] = result.get("segments", [])

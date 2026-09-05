@@ -20,19 +20,19 @@ const MODELS: ModelInfo[] = [
   {
     id: "tiny",
     label: "Tiny",
-    vibe: "Instant draft",
+    vibe: "Instant & Free Tier Safe",
     speedRating: 5,
     accRating: 2,
-    badge: "LIGHTNING",
+    badge: "RECOMMENDED",
     pro: false,
   },
   {
     id: "base",
     label: "Base",
-    vibe: "The sweet spot",
+    vibe: "Higher accuracy (needs 1GB+)",
     speedRating: 4,
     accRating: 3,
-    badge: "DEFAULT KING",
+    badge: "ACCURATE",
     pro: false,
   },
   {

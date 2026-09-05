@@ -43,14 +43,21 @@ from typing import List, Dict, Set, Tuple
 
 # ── optional dependencies (graceful degrades) ─────────────────────────────────
 try:
+    import os
     import nltk
     from nltk.stem import WordNetLemmatizer
+
+    # Use private user directory to prevent permission warnings on cloud containers
+    _nltk_dir = os.path.expanduser("~/nltk_data")
+    if _nltk_dir not in nltk.data.path:
+        nltk.data.path.insert(0, _nltk_dir)
+
     # Download silently on first run; subsequent runs are instant (cached)
     for _corpus in ("wordnet", "omw-1.4"):
         try:
             nltk.data.find(f"corpora/{_corpus}")
         except LookupError:
-            nltk.download(_corpus, quiet=True)
+            nltk.download(_corpus, download_dir=_nltk_dir, quiet=True)
     _lemmatizer: WordNetLemmatizer | None = WordNetLemmatizer()
 except ImportError:
     _lemmatizer = None  # falls back to suffix stripping only

@@ -30,7 +30,7 @@ import { useToast } from "@/components/Toast";
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [mode, setMode] = useState<ProcessMode>("auto_bleep");
-  const [model, setModel] = useState<WhisperModel>("base");
+  const [model, setModel] = useState<WhisperModel>("tiny");
   const [words, setWords] = useState<string[]>([]);
   const [phase, setPhase] = useState<"idle" | "processing" | "done" | "error">("idle");
   const [jobId, setJobId] = useState<string | null>(null);

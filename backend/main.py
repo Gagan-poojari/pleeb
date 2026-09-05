@@ -73,7 +73,7 @@ app.include_router(transcribe.router, prefix="/api", tags=["transcribe"])
 
 # ── health & root check ────────────────────────────────────────────────────────
 
-@app.get("/", tags=["root"])
+@app.api_route("/", methods=["GET", "HEAD"], tags=["root"])
 async def root():
     return {
         "status": "ok",
@@ -83,6 +83,6 @@ async def root():
         "health": "/health",
     }
 
-@app.get("/health", tags=["health"])
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["health"])
 async def health():
     return {"status": "ok", "version": "2.0.0"}
