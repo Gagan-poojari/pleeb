@@ -49,7 +49,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "https://pleeb.app",          # swap for your prod domain
+        "https://pleeb.vercel.app",          # swap for your prod domain
     ],
     allow_credentials=True,
     allow_methods=["*"],
