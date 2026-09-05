@@ -5,27 +5,39 @@ import Navbar from "@/components/Navbar";
 import VideoUploader from "@/components/VideoUploader";
 import WordInput from "@/components/WordInput";
 import ModelSelector from "@/components/ModelSelector";
+import ModeSelector from "@/components/ModeSelector";
+import SoundboardPreview from "@/components/SoundboardPreview";
 import ProgressStream from "@/components/ProgressStream";
 import ResultsPanel from "@/components/ResultsPanel";
 import { startProcess, transcribeOnly, getDownloadUrl } from "@/lib/api";
 import type { ProcessMode, WhisperModel } from "@/lib/api";
-
-const MODES: { id: ProcessMode; label: string; desc: string }[] = [
-  { id: "auto_bleep",   label: "Auto Bleep",     desc: "Detect & bleep swear words automatically" },
-  { id: "meme",         label: "Meme the Mess",  desc: "Replace swear words with random meme sounds" },
-  { id: "custom_bleep", label: "Custom Bleep",   desc: "You pick which words to bleep" },
-];
+import {
+  Zap,
+  Music,
+  VolumeX,
+  FileText,
+  ShieldAlert,
+  ArrowRight,
+  Film,
+  Cpu,
+  Smile,
+  Flame,
+  Bomb,
+  Radio,
+} from "lucide-react";
+import { useToast } from "@/components/Toast";
 
 export default function Home() {
-  const [file, setFile]           = useState<File | null>(null);
-  const [mode, setMode]           = useState<ProcessMode>("auto_bleep");
-  const [model, setModel]         = useState<WhisperModel>("base");
-  const [words, setWords]         = useState<string[]>([]);
-  const [phase, setPhase]         = useState<"idle" | "processing" | "done" | "error">("idle");
-  const [jobId, setJobId]         = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [mode, setMode] = useState<ProcessMode>("auto_bleep");
+  const [model, setModel] = useState<WhisperModel>("base");
+  const [words, setWords] = useState<string[]>([]);
+  const [phase, setPhase] = useState<"idle" | "processing" | "done" | "error">("idle");
+  const [jobId, setJobId] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<string>("");
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
-  const [errorMsg, setErrorMsg]   = useState<string>("");
+  const [errorMsg, setErrorMsg] = useState<string>("");
+  const { error: toastError, success: toastSuccess } = useToast();
 
   const handleTranscribeOnly = useCallback(async () => {
     if (!file) return;
@@ -35,14 +47,23 @@ export default function Home() {
       const result = await transcribeOnly(file, model);
       setTranscript(result.transcript);
       setPhase("done");
+      toastSuccess("Transcription finished!", "Check your transcript below.");
     } catch (e: unknown) {
-      setErrorMsg(e instanceof Error ? e.message : "Transcription failed.");
+      const msg = e instanceof Error ? e.message : "Transcription failed.";
+      setErrorMsg(msg);
+      toastError("Failed to transcribe", msg);
       setPhase("error");
     }
-  }, [file, model]);
+  }, [file, model, toastError, toastSuccess]);
 
   const handleProcess = useCallback(async () => {
     if (!file) return;
+
+    if (mode === "transcribe_only") {
+      handleTranscribeOnly();
+      return;
+    }
+
     setPhase("processing");
     setTranscript("");
     setDownloadUrl(null);
@@ -51,10 +72,12 @@ export default function Home() {
       const id = await startProcess(file, mode, model, words);
       setJobId(id);
     } catch (e: unknown) {
-      setErrorMsg(e instanceof Error ? e.message : "Failed to start processing.");
+      const msg = e instanceof Error ? e.message : "Server error starting process.";
+      setErrorMsg(msg);
+      toastError("Could not start job", msg);
       setPhase("error");
     }
-  }, [file, mode, model, words]);
+  }, [file, mode, model, words, handleTranscribeOnly, toastError]);
 
   const onProgress = useCallback(
     (event: { status: string; transcript?: string }) => {
@@ -62,13 +85,14 @@ export default function Home() {
       if (event.status === "done" && jobId) {
         setDownloadUrl(getDownloadUrl(jobId));
         setPhase("done");
+        toastSuccess("Video ready!", "Download your newly censored clip.");
       }
       if (event.status === "error") {
-        setErrorMsg("Processing failed on the server.");
+        setErrorMsg("Processing failed on the server. Check backend terminal logs.");
         setPhase("error");
       }
     },
-    [jobId]
+    [jobId, toastSuccess]
   );
 
   const reset = () => {
@@ -83,151 +107,227 @@ export default function Home() {
   };
 
   const canProcess = !!file && phase === "idle";
-  const showSteps  = !!file && phase === "idle";
+  const showSteps = !!file && phase === "idle";
 
   return (
     <>
       <Navbar />
 
-      <main style={{
-        maxWidth: 760,
-        margin: "0 auto",
-        padding: "96px 20px 80px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 0,
-      }}>
-        {/* ── Hero ────────────────────────────────────────────────────────── */}
-        <div className="fade-up" style={{ textAlign: "center", marginBottom: 40 }}>
-          <h1 style={{
-            fontSize: "clamp(2.4rem, 7vw, 3.8rem)",
-            fontWeight: 700,
-            lineHeight: 1.1,
-            marginBottom: 14,
-            letterSpacing: "-0.01em",
-          }}>
-            Pleeb - Meme the Mess
-          </h1>
-          <p style={{
-            fontSize: "1rem",
-            color: "var(--text-secondary)",
-            maxWidth: 480,
-            margin: "0 auto",
-            lineHeight: 1.65,
-          }}>
-            Upload a video. Auto-detect swear words. Replace them with a bleep — or a random meme sound.
-          </p>
-        </div>
+      <main
+        style={{
+          maxWidth: 880,
+          margin: "0 auto",
+          padding: "96px 18px 80px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 28,
+        }}
+      >
+        {/* ── HERO ────────────────────────────────────────────────────────── */}
+        <section style={{ textAlign: "center", padding: "10px 0 6px" }}>
+          {/* Top Pill Tag */}
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "6px 14px",
+              borderRadius: 6,
+              background: "#000000",
+              border: "2px solid var(--lime)",
+              boxShadow: "3px 3px 0px var(--lime)",
+              color: "var(--lime)",
+              fontSize: "0.82rem",
+              fontWeight: 800,
+              fontFamily: "var(--font-display)",
+              marginBottom: 18,
+            }}
+          >
+            <Bomb size={15} />
+            <span>AI VIDEO AUTO-CENSORSHIP & BRAINROT REMIX</span>
+          </div>
 
-        {/* ── Main panel ──────────────────────────────────────────────────── */}
+          {/* Main Display Headline */}
+          <h1
+            style={{
+              fontSize: "clamp(2.5rem, 6.5vw, 4.4rem)",
+              fontWeight: 800,
+              lineHeight: 1.05,
+              marginBottom: 16,
+              letterSpacing: "-0.04em",
+              textTransform: "uppercase",
+              textShadow: "4px 4px 0px #000, 0 0 40px rgba(0,0,0,0.8)",
+            }}
+          >
+            Censor the dirty talk. <br />
+            <span style={{ color: "var(--lime)", WebkitTextStroke: "1px #000" }}>Slap in the memes.</span>
+          </h1>
+
+          {/* Subtitle */}
+          <p
+            style={{
+              fontSize: "1.08rem",
+              color: "rgba(255, 255, 255, 0.9)",
+              maxWidth: 620,
+              margin: "0 auto 24px",
+              lineHeight: 1.55,
+              textShadow: "1px 1px 2px #000",
+            }}
+          >
+            Got a video with too many F-bombs for YouTube, TikTok, or your mom? Whisper AI
+            catches every curse with millisecond precision, and Pleeb automatically splices
+            in <strong style={{ color: "var(--lime)" }}>Bruh</strong>, <strong style={{ color: "var(--pink)" }}>Metal Pipe</strong>, and <strong style={{ color: "var(--cyan)" }}>Oof</strong> sounds
+            so you don't get demonetized.
+          </p>
+
+          {/* Feature Badges */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 14,
+              flexWrap: "wrap",
+              fontSize: "0.82rem",
+              fontWeight: 700,
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.7)", padding: "4px 10px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.2)" }}>
+              <Zap size={13} color="var(--lime)" /> 0ms FRAME DRIFT
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.7)", padding: "4px 10px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.2)" }}>
+              <Radio size={13} color="var(--pink)" /> 9+ MEME SOUND FX
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.7)", padding: "4px 10px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.2)" }}>
+              <Cpu size={13} color="var(--cyan)" /> WHISPER ASR TIMESTAMPS
+            </span>
+          </div>
+        </section>
+
+        {/* ── SOUNDBOARD PREVIEW (THE NOISE MACHINE) ──────────────────────── */}
+        <SoundboardPreview />
+
+        {/* ── WIZARD WORKBENCH ────────────────────────────────────────────── */}
         <div
-          className="glass fade-up fade-up-1"
+          className="meme-card"
           style={{
-            borderRadius: 18,
             overflow: "hidden",
-            border: "1.5px solid rgba(255,255,255,0.14)",
+            background: "rgba(10, 13, 20, 0.94)",
+            border: "2.5px solid rgba(255, 255, 255, 0.3)",
+            boxShadow: "6px 6px 0px #000, 0 20px 60px rgba(0, 0, 0, 0.9)",
           }}
         >
           {/* Step 1: Upload */}
-          <Step n={1} label="Upload a video" first>
+          <Step n={1} label="FEED YOUR MP4 VIDEO" first>
             <VideoUploader file={file} onFile={setFile} disabled={phase !== "idle"} />
           </Step>
 
           {showSteps && (
-            <>
+            <div className="pop-in">
               {/* Step 2: Mode */}
-              <Step n={2} label="Choose what to do">
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {MODES.map((m) => (
-                    <button
-                      key={m.id}
-                      onClick={() => setMode(m.id)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 14,
-                        padding: "13px 16px",
-                        borderRadius: 10,
-                        border: `2px solid ${mode === m.id ? "#ffffff" : "rgba(255,255,255,0.14)"}`,
-                        background: mode === m.id ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.03)",
-                        cursor: "pointer",
-                        textAlign: "left",
-                        transition: "all 0.18s ease",
-                        width: "100%",
-                      }}
-                    >
-                      <div style={{
-                        width: 18, height: 18,
-                        borderRadius: "50%",
-                        border: `2.5px solid ${mode === m.id ? "#ffffff" : "rgba(255,255,255,0.3)"}`,
-                        background: mode === m.id ? "#ffffff" : "transparent",
-                        flexShrink: 0,
-                        transition: "all 0.18s",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>
-                        {mode === m.id && (
-                          <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#000" }} />
-                        )}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#fff" }}>{m.label}</div>
-                        <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginTop: 2 }}>{m.desc}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+              <Step n={2} label="CHOOSE YOUR CENSOR VIBE">
+                <ModeSelector value={mode} onChange={setMode} />
               </Step>
 
-              {/* Step 3: Custom words (conditional) */}
+              {/* Step 3: Custom words (only in custom mode) */}
               {mode === "custom_bleep" && (
-                <Step n={3} label="Words to bleep (comma separated)">
+                <Step n={3} label="THE HIT LIST (CUSTOM WORDS TO BLEEP)">
+                  <p style={{ fontSize: "0.84rem", color: "rgba(255, 255, 255, 0.65)", marginBottom: 10 }}>
+                    Add whatever names, words, or secret phrases you want censored out of the video:
+                  </p>
                   <WordInput words={words} onChange={setWords} />
                 </Step>
               )}
 
-              {/* Step 3/4: Model */}
-              <Step n={mode === "custom_bleep" ? 4 : 3} label="Choose a model">
-                <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginBottom: 12 }}>
-                  Recommended: <strong style={{ color: "var(--text-secondary)" }}>base</strong> — fast and accurate enough for most videos. Larger models are slower but better.
+              {/* Step 3 or 4: Whisper AI model */}
+              <Step n={mode === "custom_bleep" ? 4 : 3} label="PICK THE WHISPER AI ENGINE">
+                <p style={{ fontSize: "0.84rem", color: "rgba(255, 255, 255, 0.65)", marginBottom: 12 }}>
+                  We recommend <strong style={{ color: "var(--lime)" }}>Base</strong> for fast, reliable accuracy on most speech.
                 </p>
                 <ModelSelector value={model} onChange={setModel} />
               </Step>
 
-              {/* Actions */}
-              <div style={{
-                padding: "20px 24px 24px",
-                display: "flex",
-                gap: 10,
-                flexWrap: "wrap",
-                borderTop: "1px solid rgba(255,255,255,0.08)",
-              }}>
+              {/* Action Bar */}
+              <div
+                style={{
+                  padding: "22px 24px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 14,
+                  flexWrap: "wrap",
+                  borderTop: "2px solid rgba(255, 255, 255, 0.15)",
+                  background: "rgba(0, 0, 0, 0.6)",
+                }}
+              >
                 <button
+                  type="button"
                   className="btn btn-secondary"
                   onClick={handleTranscribeOnly}
                   disabled={!canProcess}
-                  style={{ minWidth: 140 }}
+                  style={{ display: "inline-flex", gap: 8 }}
                 >
-                  Transcribe Only
+                  <FileText size={16} />
+                  <span>JUST TRANSCRIBE</span>
                 </button>
+
                 <button
+                  type="button"
                   className="btn btn-primary btn-lg"
-                  style={{ flex: 1, minWidth: 200 }}
                   onClick={handleProcess}
                   disabled={!canProcess || (mode === "custom_bleep" && words.length === 0)}
+                  style={{
+                    flex: 1,
+                    minWidth: 260,
+                    display: "inline-flex",
+                    gap: 10,
+                  }}
                 >
-                  {mode === "meme" ? "🎵 Meme the Mess" : "🔇 Process Video"}
+                  {mode === "meme" ? (
+                    <>
+                      <Music size={20} />
+                      <span>SLAP MEMES ON THIS VIDEO 💥</span>
+                    </>
+                  ) : mode === "custom_bleep" ? (
+                    <>
+                      <VolumeX size={20} />
+                      <span>BLEEP HIT LIST TARGETS 🎯</span>
+                    </>
+                  ) : mode === "transcribe_only" ? (
+                    <>
+                      <FileText size={20} />
+                      <span>TRANSCRIBE WITH WHISPER 📝</span>
+                    </>
+                  ) : (
+                    <>
+                      <VolumeX size={20} />
+                      <span>AUTO BLEEP ALL SWEARS 📢</span>
+                    </>
+                  )}
+                  <ArrowRight size={18} />
                 </button>
               </div>
-            </>
+            </div>
           )}
 
-          {/* Processing state */}
+          {/* Processing State */}
           {phase === "processing" && (
-            <div style={{ padding: "28px 24px", textAlign: "center" }}>
+            <div style={{ padding: "26px" }}>
               {jobId === "transcribe" ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 14,
+                    padding: "32px 0",
+                  }}
+                >
                   <div className="spinner" />
-                  <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>Transcribing audio…</p>
+                  <p style={{ color: "var(--lime)", fontSize: "0.96rem", fontWeight: 800, fontFamily: "var(--font-display)" }}>
+                    WHISPER AI TRANSCRIBING AUDIO TRACK...
+                  </p>
                 </div>
               ) : jobId ? (
                 <ProgressStream jobId={jobId} onEvent={onProgress} />
@@ -235,18 +335,26 @@ export default function Home() {
             </div>
           )}
 
-          {/* Error state */}
+          {/* Error State */}
           {phase === "error" && (
-            <div style={{ padding: "24px", textAlign: "center" }}>
-              <p style={{ color: "#ff8080", marginBottom: 16, fontSize: "0.9rem" }}>⚠️ {errorMsg}</p>
-              <button className="btn btn-secondary btn-sm" onClick={reset}>Try Again</button>
+            <div style={{ padding: "36px 24px", textAlign: "center" }}>
+              <div style={{ fontSize: "2.4rem", marginBottom: 10 }}>⚠️</div>
+              <h3 style={{ fontSize: "1.25rem", fontWeight: 800, fontFamily: "var(--font-display)", color: "var(--red)", marginBottom: 8 }}>
+                SOMETHING BROKE IN THE PIPELINE
+              </h3>
+              <p style={{ color: "rgba(255, 255, 255, 0.8)", marginBottom: 20, maxWidth: 440, margin: "0 auto 20px" }}>
+                {errorMsg || "Could not reach the server or processing failed."}
+              </p>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={reset}>
+                TRY AGAIN
+              </button>
             </div>
           )}
         </div>
 
-        {/* Results */}
+        {/* ── RESULTS STATE ────────────────────────────────────────────────── */}
         {phase === "done" && (
-          <div className="fade-up" style={{ marginTop: 24 }}>
+          <div className="pop-in">
             <ResultsPanel
               originalFile={file}
               downloadUrl={downloadUrl}
@@ -256,69 +364,133 @@ export default function Home() {
           </div>
         )}
 
-        {/* How it works */}
+        {/* ── UNDER THE HOOD (NO CORPORATE AI BULLSHIT) ───────────────────── */}
         <HowItWorks />
+
+        {/* ── FOOTER ──────────────────────────────────────────────────────── */}
+        <footer
+          style={{
+            marginTop: 40,
+            padding: "24px 0 40px",
+            borderTop: "2px solid rgba(255, 255, 255, 0.15)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 16,
+            fontSize: "0.85rem",
+            color: "rgba(255, 255, 255, 0.5)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontWeight: 800, color: "#fff", fontFamily: "var(--font-display)" }}>PLEEB</span>
+            <span>— Meme the Mess. Keep your audio in sync.</span>
+          </div>
+
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem" }}>
+            POWERED BY WHISPER ASR & FFMPEG
+          </div>
+        </footer>
       </main>
     </>
   );
 }
 
-/* ── Step wrapper ─────────────────────────────────────────────────────────── */
+/* ── Step Container ───────────────────────────────────────────────────────── */
 function Step({
-  n, label, children, first,
+  n,
+  label,
+  children,
+  first,
 }: {
-  n: number; label: string; children: React.ReactNode; first?: boolean;
+  n: number;
+  label: string;
+  children: React.ReactNode;
+  first?: boolean;
 }) {
   return (
-    <div style={{
-      padding: "22px 24px",
-      borderTop: first ? "none" : "1px solid rgba(255,255,255,0.08)",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+    <div
+      style={{
+        padding: "22px 24px",
+        borderTop: first ? "none" : "2px solid rgba(255, 255, 255, 0.12)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
         <span className="step-badge">{n}</span>
-        <span style={{ fontWeight: 700, fontSize: "0.92rem", color: "#fff" }}>{label}</span>
+        <h2 style={{ fontWeight: 800, fontSize: "1.1rem", color: "#ffffff", fontFamily: "var(--font-display)", letterSpacing: "-0.02em" }}>
+          {label}
+        </h2>
       </div>
       {children}
     </div>
   );
 }
 
-/* ── How it works ─────────────────────────────────────────────────────────── */
+/* ── How It Works ─────────────────────────────────────────────────────────── */
 function HowItWorks() {
-  const items = [
-    { emoji: "📤", title: "Upload",        desc: "Any MP4. Stays on the server, deleted after download." },
-    { emoji: "🧠", title: "Transcribe",    desc: "OpenAI Whisper produces word-level timestamps." },
-    { emoji: "🔍", title: "Match",         desc: "Catches variants like 'fucking → fuck' and compound words." },
-    { emoji: "🎵", title: "Meme the Mess", desc: "Replace matched words with a bleep or a random meme sound." },
+  const steps = [
+    {
+      title: "1. Feed the Video",
+      desc: "Drop any MP4. It processes privately on your machine and never gets stored permanently.",
+    },
+    {
+      title: "2. Whisper Tracks Syllables",
+      desc: "OpenAI Whisper transcribes speech down to the exact millisecond timestamps.",
+    },
+    {
+      title: "3. Phonetic Slang Sniffer",
+      desc: "Lemmatization and phonetic matching catch disguised curses, plurals, and mumbled swears.",
+    },
+    {
+      title: "4. Meme Audio Surgical Drop",
+      desc: "FFmpeg mutes the foul language and drops in Bruh, Oof, or Bleep without shifting audio sync 1 single frame.",
+    },
   ];
 
   return (
-    <div style={{ marginTop: 60 }}>
-      <h2 style={{ fontSize: "1.4rem", fontWeight: 700, textAlign: "center", marginBottom: 24 }}>
-        How Pleeb works
-      </h2>
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-        gap: 12,
-      }}>
-        {items.map((s, i) => (
+    <section style={{ marginTop: 24 }}>
+      <div style={{ textAlign: "center", marginBottom: 20 }}>
+        <h2
+          style={{
+            fontSize: "1.8rem",
+            fontWeight: 800,
+            fontFamily: "var(--font-display)",
+            textTransform: "uppercase",
+            letterSpacing: "-0.03em",
+          }}
+        >
+          Under The Hood
+        </h2>
+        <p style={{ fontSize: "0.92rem", color: "rgba(255, 255, 255, 0.7)" }}>
+          How Pleeb preserves speech rhythm and keeps audio 100% in sync
+        </p>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+          gap: 12,
+        }}
+      >
+        {steps.map((s) => (
           <div
             key={s.title}
-            className={`glass fade-up`}
+            className="meme-card meme-card-interactive"
             style={{
-              borderRadius: 14,
-              padding: "20px 18px",
-              border: "1.5px solid rgba(255,255,255,0.1)",
-              animationDelay: `${i * 0.07}s`,
+              padding: "18px 16px",
+              background: "rgba(12, 16, 26, 0.85)",
             }}
           >
-            <div style={{ fontSize: "1.8rem", marginBottom: 10 }}>{s.emoji}</div>
-            <div style={{ fontWeight: 700, fontSize: "0.88rem", marginBottom: 6 }}>{s.title}</div>
-            <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", lineHeight: 1.55 }}>{s.desc}</div>
+            <h3 style={{ fontWeight: 800, fontSize: "0.98rem", color: "#fff", marginBottom: 6 }}>
+              {s.title}
+            </h3>
+            <p style={{ fontSize: "0.82rem", color: "rgba(255, 255, 255, 0.65)", lineHeight: 1.45 }}>
+              {s.desc}
+            </p>
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

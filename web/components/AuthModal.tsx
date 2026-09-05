@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/providers/AuthProvider";
+import { X, Mail, Lock, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
+import { useToast } from "./Toast";
 
 interface Props {
   open: boolean;
@@ -13,17 +15,26 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export default function AuthModal({ open, onClose, defaultTab = "login" }: Props) {
   const { refresh } = useAuth();
-  const [tab, setTab]         = useState<"login" | "register">(defaultTab);
-  const [email, setEmail]     = useState("");
+  const { success } = useToast();
+  const [tab, setTab] = useState<"login" | "register">(defaultTab);
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError]     = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const backdropRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setTab(defaultTab), [defaultTab]);
   useEffect(() => {
-    if (!open) { setEmail(""); setPassword(""); setError(""); setLoading(false); }
+    if (!open) {
+      setEmail("");
+      setPassword("");
+      setError("");
+      setLoading(false);
+      setShowPassword(false);
+    }
   }, [open]);
+
   useEffect(() => {
     const h = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", h);
@@ -45,11 +56,15 @@ export default function AuthModal({ open, onClose, defaultTab = "login" }: Props
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.detail ?? "Something went wrong"); return; }
+      if (!res.ok) {
+        setError(data.detail ?? "Authentication failed. Check your email/password.");
+        return;
+      }
       await refresh();
+      success(tab === "login" ? "Welcome back!" : "Account created!", "You are logged in.");
       onClose();
     } catch {
-      setError("Could not reach the server. Is the backend running?");
+      setError("Could not reach backend API server. Is it running on port 8000?");
     } finally {
       setLoading(false);
     }
@@ -58,144 +73,252 @@ export default function AuthModal({ open, onClose, defaultTab = "login" }: Props
   return (
     <div
       ref={backdropRef}
-      onClick={e => e.target === backdropRef.current && onClose()}
+      onClick={(e) => e.target === backdropRef.current && onClose()}
       style={{
-        position: "fixed", inset: 0, zIndex: 1000,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        background: "rgba(0,0,0,0.80)",
-        backdropFilter: "blur(4px)",
+        position: "fixed",
+        inset: 0,
+        zIndex: 1000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "rgba(0, 0, 0, 0.85)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
         padding: 16,
-        animation: "fadeIn 0.15s ease",
       }}
     >
-      <div style={{
-        width: "100%", maxWidth: 400,
-        background: "#000000",
-        border: "2px solid rgba(255,255,255,0.25)",
-        borderRadius: 16,
-        padding: "36px 32px 32px",
-        position: "relative",
-        animation: "slideUp 0.2s ease",
-        boxShadow: "0 32px 80px rgba(0,0,0,0.9)",
-      }}>
+      <div
+        className="pop-in"
+        style={{
+          width: "100%",
+          maxWidth: 420,
+          background: "#0d101a",
+          border: "2px solid #ffffff",
+          borderRadius: "var(--radius-md)",
+          padding: "32px 28px",
+          position: "relative",
+          boxShadow: "8px 8px 0px #000, 0 0 40px rgba(0, 0, 0, 0.9)",
+        }}
+      >
+        {/* Close Button */}
         <button
           onClick={onClose}
           style={{
-            position: "absolute", top: 14, right: 14,
-            background: "none", border: "none",
-            color: "rgba(255,255,255,0.45)", fontSize: "1.4rem",
-            cursor: "pointer", lineHeight: 1, padding: 4,
+            position: "absolute",
+            top: 16,
+            right: 16,
+            background: "#000",
+            border: "1.5px solid rgba(255, 255, 255, 0.4)",
+            color: "#fff",
+            cursor: "pointer",
+            padding: 4,
             borderRadius: 4,
-            fontFamily: "'Comic Neue', cursive",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
-        >x</button>
+        >
+          <X size={16} />
+        </button>
 
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <h2 style={{
-            fontSize: "1.3rem", fontWeight: 700, color: "#fff", marginBottom: 6,
-            fontFamily: "'Comic Neue', cursive",
-          }}>
-            {tab === "login" ? "Welcome back" : "Create account"}
+        {/* Modal Header */}
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <span style={{ fontSize: "2rem" }}>🔑</span>
+          <h2
+            style={{
+              fontSize: "1.4rem",
+              fontWeight: 800,
+              fontFamily: "var(--font-display)",
+              color: "#fff",
+              marginTop: 6,
+            }}
+          >
+            {tab === "login" ? "WELCOME BACK TO PLEEB" : "JOIN THE MEME SQUAD"}
           </h2>
-          <p style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.5)" }}>
-            {tab === "login" ? "Sign in to unlock PRO models and downloads." : "Free account. Takes 10 seconds."}
+          <p style={{ fontSize: "0.85rem", color: "rgba(255, 255, 255, 0.6)", marginTop: 4 }}>
+            {tab === "login"
+              ? "Sign in to download videos & unlock heavy Whisper models."
+              : "Free account. Takes 10 seconds. No spam ever."}
           </p>
         </div>
 
-        <div style={{
-          display: "grid", gridTemplateColumns: "1fr 1fr",
-          border: "2px solid rgba(255,255,255,0.18)",
-          borderRadius: 8, overflow: "hidden", marginBottom: 24,
-        }}>
-          {(["login", "register"] as const).map(t => (
+        {/* Tabs */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            background: "#000000",
+            border: "2px solid rgba(255, 255, 255, 0.2)",
+            borderRadius: 6,
+            padding: 3,
+            marginBottom: 20,
+          }}
+        >
+          {(["login", "register"] as const).map((t) => (
             <button
               key={t}
-              onClick={() => { setTab(t); setError(""); }}
+              type="button"
+              onClick={() => {
+                setTab(t);
+                setError("");
+              }}
               style={{
-                padding: "9px 0",
+                padding: "8px 0",
                 border: "none",
                 cursor: "pointer",
-                fontFamily: "'Comic Neue', cursive",
-                fontWeight: 700,
-                fontSize: "0.85rem",
-                transition: "all 0.18s",
-                background: tab === t ? "#ffffff" : "transparent",
-                color: tab === t ? "#000000" : "rgba(255,255,255,0.5)",
-                borderRight: t === "login" ? "2px solid rgba(255,255,255,0.18)" : "none",
+                borderRadius: 4,
+                fontWeight: 800,
+                fontSize: "0.86rem",
+                fontFamily: "var(--font-display)",
+                background: tab === t ? "var(--lime)" : "transparent",
+                color: tab === t ? "#000000" : "rgba(255, 255, 255, 0.6)",
+                boxShadow: tab === t ? "2px 2px 0px #fff" : "none",
+                transition: "all 0.1s ease",
               }}
             >
-              {t === "login" ? "Sign In" : "Register"}
+              {t === "login" ? "SIGN IN" : "REGISTER"}
             </button>
           ))}
         </div>
 
+        {/* Form */}
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div>
-            <label style={{
-              display: "block", fontSize: "0.78rem", fontWeight: 700,
-              color: "rgba(255,255,255,0.55)", marginBottom: 6,
-              fontFamily: "'Comic Neue', cursive", letterSpacing: "0.03em",
-            }}>Email</label>
-            <input
-              type="email" required autoComplete="email"
-              value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="you@example.com"
-            />
+            <label
+              style={{
+                display: "block",
+                fontSize: "0.78rem",
+                fontWeight: 700,
+                color: "rgba(255, 255, 255, 0.7)",
+                marginBottom: 6,
+                fontFamily: "var(--font-mono)",
+              }}
+            >
+              EMAIL
+            </label>
+            <div style={{ position: "relative" }}>
+              <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255, 255, 255, 0.4)", display: "flex" }}>
+                <Mail size={16} />
+              </div>
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@domain.com"
+                style={{ paddingLeft: 42 }}
+              />
+            </div>
           </div>
+
           <div>
-            <label style={{
-              display: "block", fontSize: "0.78rem", fontWeight: 700,
-              color: "rgba(255,255,255,0.55)", marginBottom: 6,
-              fontFamily: "'Comic Neue', cursive", letterSpacing: "0.03em",
-            }}>Password</label>
-            <input
-              type="password" required
-              autoComplete={tab === "login" ? "current-password" : "new-password"}
-              value={password} onChange={e => setPassword(e.target.value)}
-              placeholder={tab === "register" ? "Min. 8 characters" : "••••••••"}
-            />
+            <label
+              style={{
+                display: "block",
+                fontSize: "0.78rem",
+                fontWeight: 700,
+                color: "rgba(255, 255, 255, 0.7)",
+                marginBottom: 6,
+                fontFamily: "var(--font-mono)",
+              }}
+            >
+              PASSWORD
+            </label>
+            <div style={{ position: "relative" }}>
+              <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255, 255, 255, 0.4)", display: "flex" }}>
+                <Lock size={16} />
+              </div>
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                autoComplete={tab === "login" ? "current-password" : "new-password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={tab === "register" ? "At least 8 chars" : "••••••••"}
+                style={{ paddingLeft: 42, paddingRight: 42 }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: "absolute",
+                  right: 14,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  color: "rgba(255, 255, 255, 0.4)",
+                  cursor: "pointer",
+                  display: "flex",
+                }}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
 
           {error && (
-            <div style={{
-              padding: "10px 14px", borderRadius: 7,
-              background: "rgba(255,60,60,0.08)",
-              border: "1.5px solid rgba(255,60,60,0.35)",
-              color: "#ff8080", fontSize: "0.82rem",
-              fontFamily: "'Comic Neue', cursive",
-            }}>
-              {error}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "10px 12px",
+                borderRadius: 4,
+                background: "rgba(255, 51, 68, 0.15)",
+                border: "1.5px solid var(--red)",
+                color: "var(--red)",
+                fontSize: "0.84rem",
+                fontWeight: 700,
+              }}
+            >
+              <AlertCircle size={16} style={{ flexShrink: 0 }} />
+              <span>{error}</span>
             </div>
           )}
 
-          <button type="submit" disabled={loading} className="btn btn-primary" style={{ marginTop: 6 }}>
-            {loading ? "Please wait..." : tab === "login" ? "Sign In" : "Create Account"}
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn btn-primary"
+            style={{ width: "100%", marginTop: 6, height: 46 }}
+          >
+            {loading ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Loader2 className="spinner" size={16} />
+                <span>CONNECTING...</span>
+              </div>
+            ) : tab === "login" ? (
+              "SIGN IN TO ACCOUNT"
+            ) : (
+              "CREATE MY ACCOUNT"
+            )}
           </button>
         </form>
 
-        <p style={{
-          marginTop: 20, textAlign: "center",
-          fontSize: "0.8rem", color: "rgba(255,255,255,0.4)",
-          fontFamily: "'Comic Neue', cursive",
-        }}>
-          {tab === "login" ? "No account? " : "Already have one? "}
+        <p style={{ marginTop: 18, textAlign: "center", fontSize: "0.82rem", color: "rgba(255, 255, 255, 0.5)" }}>
+          {tab === "login" ? "No account? " : "Already signed up? "}
           <button
-            onClick={() => { setTab(tab === "login" ? "register" : "login"); setError(""); }}
+            onClick={() => {
+              setTab(tab === "login" ? "register" : "login");
+              setError("");
+            }}
             style={{
-              background: "none", border: "none", color: "#ffffff",
-              cursor: "pointer", fontWeight: 700, fontSize: "inherit",
-              fontFamily: "'Comic Neue', cursive", padding: 0, textDecoration: "underline",
+              background: "none",
+              border: "none",
+              color: "var(--lime)",
+              cursor: "pointer",
+              fontWeight: 800,
+              textDecoration: "underline",
+              fontFamily: "inherit",
+              padding: 0,
             }}
           >
-            {tab === "login" ? "Register free" : "Sign in"}
+            {tab === "login" ? "Register free" : "Sign in here"}
           </button>
         </p>
       </div>
-
-      <style>{`
-        @keyframes fadeIn  { from { opacity: 0 } to { opacity: 1 } }
-        @keyframes slideUp { from { transform: translateY(14px); opacity: 0 } to { transform: none; opacity: 1 } }
-      `}</style>
     </div>
   );
 }
