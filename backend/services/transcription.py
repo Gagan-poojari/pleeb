@@ -52,6 +52,16 @@ FREE_MODELS = {"tiny", "base"}
 # Models that require a signed-in account (higher compute cost)
 PRO_MODELS  = {"small", "medium", "large"}
 
+import gc
+import os
+import torch
+
+# Limit PyTorch CPU threads to reduce memory footprint on constrained cloud hosts
+try:
+    torch.set_num_threads(int(os.getenv("TORCH_NUM_THREADS", "1")))
+except Exception:
+    pass
+
 # Process-level model cache: {model_name → loaded model object}
 _model_cache: Dict[str, Any] = {}
 
@@ -69,15 +79,20 @@ def get_model(name: str) -> Any:
             f"Available models: {', '.join(AVAILABLE_MODELS)}"
         )
     if name not in _model_cache:
+        # Free any previously cached model to stay well within RAM limits
+        if _model_cache:
+            _model_cache.clear()
+            gc.collect()
+
         # device="cpu" keeps the service portable; swap for "cuda" on GPU hosts
         _model_cache[name] = wts.load_model(name, device="cpu")
     return _model_cache[name]
 
 
-def preload_model(name: str = "base") -> None:
+def preload_model(name: str = "tiny") -> None:
     """
     Eagerly load *name* so the first user request is not slowed by model I/O.
-    Call this from your ASGI lifespan startup hook.
+    Call this from your ASGI lifespan startup hook only if memory allows.
     """
     get_model(name)
 

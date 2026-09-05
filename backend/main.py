@@ -25,8 +25,10 @@ async def lifespan(app: FastAPI):
     # Create DB tables (no-op if they already exist)
     Base.metadata.create_all(bind=engine)
 
-    # Pre-load the default model so the first request doesn't feel slow
-    preload_model("base")
+    # Only preload if PRELOAD_MODEL is explicitly "true"
+    # Disabled by default so the server boots smoothly on 512MB RAM without crashing
+    if os.getenv("PRELOAD_MODEL", "false").lower() == "true":
+        preload_model(os.getenv("PRELOAD_MODEL_NAME", "tiny"))
 
     # Ensure jobs directory exists
     Path("./jobs").mkdir(exist_ok=True)
